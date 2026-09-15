@@ -148,11 +148,45 @@
   .btn-danger{background:var(--danger);color:#fff;border:none;font-size:14px;font-weight:500;padding:8px 14px;border-radius:6px;}
 
   .loading{padding:40px 20px;text-align:center;font-size:14px;color:var(--muted);}
+
+  .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .auth-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;width:100%;max-width:360px;padding:28px 24px;box-shadow:0 8px 32px rgba(0,0,0,0.08);}
+  .auth-card h1{font-size:20px;margin:0 0 4px;}
+  .auth-card p{font-size:13px;color:var(--ink-soft);margin:0 0 20px;}
+  .auth-field{margin-bottom:12px;}
+  .auth-field label{font-size:11px;text-transform:uppercase;letter-spacing:0.04em;font-weight:500;color:var(--muted);}
+  .auth-field input{margin-top:5px;width:100%;font-size:14px;color:var(--ink);border:1px solid var(--border);border-radius:6px;padding:9px 10px;outline:none;}
+  .auth-error{font-size:13px;color:var(--danger);margin:0 0 12px;display:none;}
+  .auth-submit{width:100%;background:var(--accent);color:#fff;border:none;font-size:14px;font-weight:500;padding:10px;border-radius:6px;margin-top:6px;}
+  .auth-submit:disabled{opacity:0.6;}
+  .hidden{display:none !important;}
+  .user-bar{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-soft);}
+  .signout-btn{background:none;border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--ink-soft);padding:6px 10px;}
+  .signout-btn:hover{background:rgba(0,0,0,0.03);}
 </style>
 </head>
 <body>
 
-<div class="wrap">
+<div class="auth-wrap" id="authScreen">
+  <div class="auth-card">
+    <h1 class="display">Task Log</h1>
+    <p>Sign in with your team account to continue.</p>
+    <p class="auth-error" id="authError"></p>
+    <form id="authForm">
+      <div class="auth-field">
+        <label>Email</label>
+        <input type="email" id="authEmail" autocomplete="username" required />
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <input type="password" id="authPassword" autocomplete="current-password" required />
+      </div>
+      <button type="submit" class="auth-submit" id="authSubmit">Sign in</button>
+    </form>
+  </div>
+</div>
+
+<div class="wrap hidden" id="appWrap">
   <div class="header">
     <div>
       <div class="title-row">
@@ -161,10 +195,16 @@
       </div>
       <p class="subtitle">Issues and to-dos, ranked by priority.</p>
     </div>
-    <button class="btn-primary" id="newTaskBtn">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="user-bar">
+        <span id="userEmail"></span>
+        <button class="signout-btn" id="signOutBtn">Sign out</button>
+      </div>
+      <button class="btn-primary" id="newTaskBtn">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       New task
     </button>
+    </div>
   </div>
 
   <div class="toolbar">
@@ -254,6 +294,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -267,7 +308,49 @@ const firebaseConfig = {
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
+const auth = getAuth(firebaseApp);
 const tasksDocRef = doc(db, "tasklog", "main");
+
+// Auth wiring: gate the app behind sign-in, since there's no public sign-up form
+// (accounts are created manually for teammates in the Firebase console).
+const authScreen = document.getElementById('authScreen');
+const appWrap = document.getElementById('appWrap');
+const authForm = document.getElementById('authForm');
+const authError = document.getElementById('authError');
+const authSubmit = document.getElementById('authSubmit');
+const userEmailEl = document.getElementById('userEmail');
+
+authForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  authError.style.display = 'none';
+  authSubmit.disabled = true;
+  authSubmit.textContent = 'Signing in...';
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    authError.textContent = 'Sign-in failed. Check your email and password.';
+    authError.style.display = 'block';
+  } finally {
+    authSubmit.disabled = false;
+    authSubmit.textContent = 'Sign in';
+  }
+});
+
+document.getElementById('signOutBtn').addEventListener('click', () => signOut(auth));
+
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    authScreen.classList.add('hidden');
+    appWrap.classList.remove('hidden');
+    userEmailEl.textContent = user.email;
+    window.__appInit ? window.__appInit() : (window.__pendingInit = true);
+  } else {
+    appWrap.classList.add('hidden');
+    authScreen.classList.remove('hidden');
+  }
+});
 
 (function(){
   const PRIORITIES = [
@@ -310,7 +393,7 @@ const tasksDocRef = doc(db, "tasklog", "main");
 
   async function saveTasks(){
     try{
-      await setDoc(tasksDocRef, { tasks, updatedAt: Date.now() });
+      await setDoc(tasksDocRef, { tasks, updatedAt: Date.now(), updatedBy: auth.currentUser ? auth.currentUser.email : null });
     }catch(e){
       console.error('Failed to save tasks to Firestore:', e); /* in-memory state still holds for this session */
     }
@@ -546,7 +629,14 @@ const tasksDocRef = doc(db, "tasklog", "main");
     el('titleInput').classList.remove('error');
   });
 
-  loadTasks();
+  // Only start loading tasks once a signed-in user is confirmed (see auth wiring above).
+  let started = false;
+  window.__appInit = function(){
+    if(started) return;
+    started = true;
+    loadTasks();
+  };
+  if(window.__pendingInit) window.__appInit();
 })();
 </script>
 </body>
