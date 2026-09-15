@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Task Log</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root{
+    --bg:#F5F3EE;
+    --surface:#FFFFFF;
+    --ink:#1E2320;
+    --ink-soft:#5B6259;
+    --muted:#8A8578;
+    --border:#DEDAD0;
+    --border-soft:#EDEAE2;
+    --accent:#2B3A55;
+    --danger:#C1440E;
+    --urgent:#C1440E;
+    --high:#C98A00;
+    --normal:#3F6B5C;
+    --low:#8A8578;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',ui-sans-serif,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'JetBrains Mono',ui-monospace,monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+  button{font-family:inherit;cursor:pointer;}
+  input,textarea{font-family:inherit;}
+
+  .wrap{max-width:760px;margin:0 auto;padding:32px 20px 64px;}
+  @media(min-width:640px){.wrap{padding:48px 24px 80px;}}
+
+  .header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:28px;}
+  .title-row{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  h1{font-size:26px;font-weight:600;letter-spacing:-0.01em;margin:0;}
+  .count{font-size:12px;color:var(--muted);}
+  .subtitle{font-size:14px;color:var(--ink-soft);margin:4px 0 0;}
+
+  .btn-primary{
+    display:flex;align-items:center;gap:6px;
+    background:var(--accent);color:#fff;border:none;
+    font-size:14px;font-weight:500;padding:9px 15px;border-radius:6px;
+    white-space:nowrap;flex-shrink:0;
+  }
+  .btn-primary:hover{opacity:0.92;}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+  .search{
+    display:flex;align-items:center;gap:8px;
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:6px;padding:8px 12px;flex:1;min-width:160px;
+  }
+  .search input{border:none;outline:none;background:transparent;font-size:14px;width:100%;color:var(--ink);}
+  .search svg{flex-shrink:0;color:var(--muted);}
+
+  .select{position:relative;}
+  .select-btn{
+    display:flex;align-items:center;gap:6px;
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:6px;padding:8px 12px;font-size:14px;color:var(--ink);
+  }
+  .select-menu{
+    position:absolute;z-index:20;margin-top:4px;min-width:100%;
+    background:var(--surface);border:1px solid var(--border);border-radius:6px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.06);overflow:hidden;display:none;
+  }
+  .select-menu.open{display:block;}
+  .select-item{
+    display:flex;align-items:center;justify-content:space-between;
+    width:100%;text-align:left;padding:7px 12px;font-size:14px;
+    background:none;border:none;color:var(--ink);white-space:nowrap;
+  }
+  .select-item:hover{background:rgba(0,0,0,0.03);}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .empty{padding:56px 20px;text-align:center;}
+  .empty p:first-child{font-size:14px;font-weight:500;color:var(--ink);margin:0;}
+  .empty p:last-child{font-size:14px;color:var(--muted);margin:4px 0 0;}
+
+  .row{display:flex;align-items:stretch;gap:12px;padding:14px 16px;border-top:1px solid var(--border-soft);}
+  .row:first-child{border-top:none;}
+  .row.done{opacity:0.6;}
+  .rail{width:4px;border-radius:4px;flex-shrink:0;}
+  .row-check{flex-shrink:0;display:flex;align-items:flex-start;padding-top:1px;}
+  .checkbox{
+    width:17px;height:17px;border-radius:5px;border:1.5px solid var(--border);
+    background:var(--surface);display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+  }
+  .checkbox.checked{background:var(--normal);border-color:var(--normal);}
+  .checkbox svg{display:none;color:#fff;}
+  .checkbox.checked svg{display:block;}
+
+  .row-body{flex:1;min-width:0;}
+  .row-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .task-id{font-size:11px;color:var(--muted);}
+  .task-title{font-size:14px;font-weight:500;color:var(--ink);}
+  .row.done .task-title{text-decoration:line-through;color:var(--ink-soft);}
+  .task-desc{font-size:14px;color:var(--ink-soft);margin:2px 0 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .tags{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap;}
+  .tag{font-size:11px;text-transform:uppercase;letter-spacing:0.04em;font-weight:500;padding:2px 8px;border-radius:4px;}
+  .tag-cat{background:var(--bg);color:var(--ink-soft);}
+  .tag-status{background:var(--bg);color:var(--ink-soft);}
+  .tag-priority{display:inline-flex;align-items:center;gap:5px;}
+  .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+
+  .row-actions{display:flex;align-items:flex-start;gap:2px;flex-shrink:0;opacity:0;transition:opacity 0.12s;}
+  .row:hover .row-actions{opacity:1;}
+  .icon-btn{background:none;border:none;padding:6px;border-radius:5px;display:flex;}
+  .icon-btn:hover{background:rgba(0,0,0,0.04);}
+
+  .overlay{position:fixed;inset:0;background:rgba(30,35,32,0.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:30;overflow-y:auto;}
+  .overlay.open{display:flex;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:10px;width:100%;max-width:480px;box-shadow:0 8px 32px rgba(0,0,0,0.14);margin:auto;}
+  .modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border-soft);}
+  .modal-header h2{font-size:15px;font-weight:600;margin:0;}
+  .modal-body{padding:16px 20px;display:flex;flex-direction:column;gap:14px;}
+  .field label{font-size:11px;text-transform:uppercase;letter-spacing:0.04em;font-weight:500;color:var(--muted);}
+  .field input[type=text], .field textarea{
+    margin-top:5px;width:100%;font-size:14px;color:var(--ink);
+    border:1px solid var(--border);border-radius:6px;padding:8px 10px;outline:none;
+  }
+  .field input.error{border-color:var(--danger);}
+  .error-text{font-size:12px;color:var(--danger);margin:4px 0 0;}
+  .field textarea{resize:none;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .priority-options{display:flex;flex-direction:column;gap:5px;margin-top:5px;}
+  .priority-opt{
+    display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink);
+    border:1px solid var(--border);border-radius:6px;padding:7px 10px;background:transparent;
+  }
+  .priority-opt.active{background:rgba(0,0,0,0.02);}
+  .status-options{display:flex;gap:6px;margin-top:5px;}
+  .status-opt{flex:1;font-size:13px;font-weight:500;padding:7px 0;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--ink-soft);}
+  .status-opt.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .cat-input{margin-top:6px;font-size:14px;border:1px solid var(--border);border-radius:6px;padding:7px 10px;outline:none;width:100%;color:var(--ink);}
+  .modal-footer{display:flex;justify-content:flex-end;gap:8px;padding:16px 20px;border-top:1px solid var(--border-soft);}
+  .btn-ghost{background:none;border:none;font-size:14px;font-weight:500;color:var(--ink-soft);padding:8px 14px;border-radius:6px;}
+  .btn-ghost:hover{background:rgba(0,0,0,0.03);}
+  .btn-danger{background:var(--danger);color:#fff;border:none;font-size:14px;font-weight:500;padding:8px 14px;border-radius:6px;}
+
+  .loading{padding:40px 20px;text-align:center;font-size:14px;color:var(--muted);}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="header">
+    <div>
+      <div class="title-row">
+        <h1 class="display">Task Log</h1>
+        <span class="count mono" id="openCount">000 open</span>
+      </div>
+      <p class="subtitle">Issues and to-dos, ranked by priority.</p>
+    </div>
+    <button class="btn-primary" id="newTaskBtn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New task
+    </button>
+  </div>
+
+  <div class="toolbar">
+    <div class="search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="searchInput" placeholder="Search tasks..." />
+    </div>
+    <div class="select" id="statusSelect">
+      <button class="select-btn" data-value="All">Status: All <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <div class="select-menu"></div>
+    </div>
+    <div class="select" id="categorySelect">
+      <button class="select-btn" data-value="All">Category: All <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <div class="select-menu"></div>
+    </div>
+    <div class="select" id="prioritySelect">
+      <button class="select-btn" data-value="All">Priority: All <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <div class="select-menu"></div>
+    </div>
+  </div>
+
+  <div class="card" id="listCard">
+    <div class="loading">Loading log...</div>
+  </div>
+</div>
+
+<!-- Task form modal -->
+<div class="overlay" id="formOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="display" id="formTitle">New task</h2>
+      <button class="icon-btn" id="formClose"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Title</label>
+        <input type="text" id="titleInput" placeholder="What needs to happen?" />
+        <p class="error-text" id="titleError" style="display:none;">Title can't be empty.</p>
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea id="descInput" rows="3" placeholder="Add detail, context, or acceptance criteria..."></textarea>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>Priority</label>
+          <div class="priority-options" id="priorityOptions"></div>
+        </div>
+        <div class="field">
+          <label>Category</label>
+          <div class="select" id="formCategorySelect" style="margin-top:5px;">
+            <button class="select-btn" data-value="" style="width:100%;justify-content:space-between;"></button>
+            <div class="select-menu"></div>
+          </div>
+          <input type="text" id="newCategoryInput" class="cat-input" placeholder="or type a new one..." />
+        </div>
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <div class="status-options" id="statusOptions">
+          <button type="button" class="status-opt" data-value="open">Open</button>
+          <button type="button" class="status-opt" data-value="done">Done</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" id="formCancel">Cancel</button>
+      <button class="btn-primary" id="formSave">Add to log</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirm modal -->
+<div class="overlay" id="deleteOverlay">
+  <div class="modal" style="max-width:380px;">
+    <div style="padding:20px;">
+      <h3 class="display" id="deleteTitle" style="font-size:15px;font-weight:600;margin:0;">Delete task?</h3>
+      <p id="deleteDesc" style="font-size:14px;color:var(--ink-soft);margin:6px 0 0;"></p>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+        <button class="btn-ghost" id="deleteCancel">Cancel</button>
+        <button class="btn-danger" id="deleteConfirm">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+// TODO: paste the firebaseConfig object from your Firebase console (Project settings > General > Your apps)
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
+const tasksDocRef = doc(db, "tasklog", "main");
+
+(function(){
+  const PRIORITIES = [
+    { id:'urgent', label:'Urgent', color:'var(--urgent)' },
+    { id:'high', label:'High', color:'var(--high)' },
+    { id:'normal', label:'Normal', color:'var(--normal)' },
+    { id:'low', label:'Low', color:'var(--low)' },
+  ];
+  const DEFAULT_CATEGORIES = ['Bug','Feature','Chore','Research'];
+  const PRIORITY_ORDER = { urgent:0, high:1, normal:2, low:3 };
+
+  let tasks = [];
+  let loaded = false;
+  let nextSeq = 1;
+  let filters = { status:'All', category:'All', priority:'All', query:'' };
+  let editingId = null;
+  let deleteTargetId = null;
+  let formPriority = 'normal';
+  let formStatus = 'open';
+  let formCategory = DEFAULT_CATEGORIES[0];
+
+  const pad = n => String(n).padStart(3,'0');
+  const priorityMeta = id => PRIORITIES.find(p=>p.id===id) || PRIORITIES[2];
+  const el = id => document.getElementById(id);
+
+  async function loadTasks(){
+    try{
+      const snap = await getDoc(tasksDocRef);
+      tasks = snap.exists() ? (snap.data().tasks || []) : [];
+    }catch(e){
+      console.error('Failed to load tasks from Firestore:', e);
+      tasks = [];
+    }
+    loaded = true;
+    if(tasks.length){
+      nextSeq = Math.max(...tasks.map(t=>t.seq||0)) + 1;
+    }
+    render();
+  }
+
+  async function saveTasks(){
+    try{
+      await setDoc(tasksDocRef, { tasks, updatedAt: Date.now() });
+    }catch(e){
+      console.error('Failed to save tasks to Firestore:', e); /* in-memory state still holds for this session */
+    }
+  }
+
+  function getCategories(){
+    const fromTasks = tasks.map(t=>t.category);
+    return Array.from(new Set([...DEFAULT_CATEGORIES, ...fromTasks]));
+  }
+
+  function getFiltered(){
+    return tasks
+      .filter(t => filters.status === 'All' ? true : t.status === filters.status)
+      .filter(t => filters.category === 'All' ? true : t.category === filters.category)
+      .filter(t => filters.priority === 'All' ? true : t.priority === filters.priority)
+      .filter(t => filters.query.trim() ? (t.title+' '+t.description).toLowerCase().includes(filters.query.toLowerCase()) : true)
+      .sort((a,b)=>{
+        if(a.status !== b.status) return a.status === 'open' ? -1 : 1;
+        if(PRIORITY_ORDER[a.priority] !== PRIORITY_ORDER[b.priority]) return PRIORITY_ORDER[a.priority]-PRIORITY_ORDER[b.priority];
+        return b.seq - a.seq;
+      });
+  }
+
+  function render(){
+    el('openCount').textContent = pad(tasks.filter(t=>t.status==='open').length) + ' open';
+    renderSelect('statusSelect', ['All','Open','Done'], filters.status === 'All' ? 'All' : (filters.status==='open'?'Open':'Done'), (label)=>{
+      filters.status = label==='All' ? 'All' : label.toLowerCase();
+      render();
+    }, 'Status: ');
+    renderSelect('categorySelect', ['All', ...getCategories()], filters.category, (v)=>{
+      filters.category = v; render();
+    }, 'Category: ');
+    renderSelect('prioritySelect', ['All', ...PRIORITIES.map(p=>p.label)], filters.priority==='All'?'All':priorityMeta(filters.priority).label, (label)=>{
+      const found = PRIORITIES.find(p=>p.label===label);
+      filters.priority = found ? found.id : 'All';
+      render();
+    }, 'Priority: ');
+
+    const card = el('listCard');
+    if(!loaded){
+      card.innerHTML = '<div class="loading">Loading log...</div>';
+      return;
+    }
+    const filtered = getFiltered();
+    if(filtered.length === 0){
+      card.innerHTML = `<div class="empty">
+        <p>${tasks.length===0 ? 'The log is empty.' : 'Nothing matches those filters.'}</p>
+        <p>${tasks.length===0 ? 'Add the first task to get started.' : 'Try clearing a filter or search term.'}</p>
+      </div>`;
+      return;
+    }
+    card.innerHTML = filtered.map(t => {
+      const meta = priorityMeta(t.priority);
+      const done = t.status === 'done';
+      return `
+      <div class="row ${done?'done':''}" data-id="${t.id}">
+        <div class="rail" style="background:${meta.color}"></div>
+        <div class="row-check">
+          <button class="checkbox ${done?'checked':''}" data-toggle="${t.id}" title="${done?'Mark open':'Mark done'}">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+        </div>
+        <div class="row-body">
+          <div class="row-top">
+            <span class="task-id mono">T-${pad(t.seq)}</span>
+            <span class="task-title">${escapeHtml(t.title)}</span>
+          </div>
+          ${t.description ? `<p class="task-desc">${escapeHtml(t.description)}</p>` : ''}
+          <div class="tags">
+            <span class="tag tag-priority" style="color:${meta.color};background:${meta.color}1a">
+              <span class="dot" style="background:${meta.color}"></span>${meta.label}
+            </span>
+            <span class="tag tag-cat">${escapeHtml(t.category)}</span>
+            <span class="tag tag-status">${done?'Done':'Open'}</span>
+          </div>
+        </div>
+        <div class="row-actions">
+          <button class="icon-btn" data-edit="${t.id}" title="Edit">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5B6259" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button class="icon-btn" data-delete="${t.id}" title="Delete">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C1440E" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+
+    card.querySelectorAll('[data-toggle]').forEach(b=>b.addEventListener('click', ()=>toggleStatus(b.dataset.toggle)));
+    card.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', ()=>openForm(b.dataset.edit)));
+    card.querySelectorAll('[data-delete]').forEach(b=>b.addEventListener('click', ()=>openDeleteConfirm(b.dataset.delete)));
+  }
+
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function renderSelect(containerId, options, current, onChange, prefix){
+    const container = el(containerId);
+    const btn = container.querySelector('.select-btn');
+    btn.innerHTML = `${prefix}${current} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`;
+    const menu = container.querySelector('.select-menu');
+    menu.innerHTML = options.map(o => `<button class="select-item" data-v="${escapeHtml(o)}">${escapeHtml(o)}${o===current?' <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>':''}</button>`).join('');
+    btn.onclick = (e)=>{ e.stopPropagation(); closeAllSelects(); menu.classList.toggle('open'); };
+    menu.querySelectorAll('.select-item').forEach(item=>{
+      item.onclick = ()=>{ onChange(item.dataset.v); closeAllSelects(); };
+    });
+  }
+
+  function closeAllSelects(){
+    document.querySelectorAll('.select-menu.open').forEach(m=>m.classList.remove('open'));
+  }
+  document.addEventListener('click', closeAllSelects);
+
+  function toggleStatus(id){
+    tasks = tasks.map(t => t.id===id ? {...t, status: t.status==='open' ? 'done' : 'open'} : t);
+    saveTasks();
+    render();
+  }
+
+  function openForm(id){
+    editingId = id || null;
+    const task = id ? tasks.find(t=>t.id===id) : null;
+    el('formTitle').textContent = task ? `Edit T-${pad(task.seq)}` : 'New task';
+    el('formSave').textContent = task ? 'Save changes' : 'Add to log';
+    el('titleInput').value = task ? task.title : '';
+    el('descInput').value = task ? task.description : '';
+    el('titleError').style.display = 'none';
+    el('titleInput').classList.remove('error');
+    formPriority = task ? task.priority : 'normal';
+    formStatus = task ? task.status : 'open';
+    formCategory = task ? task.category : getCategories()[0];
+    el('newCategoryInput').value = '';
+    renderPriorityOptions();
+    renderStatusOptions();
+    renderFormCategorySelect();
+    el('formOverlay').classList.add('open');
+    el('titleInput').focus();
+  }
+
+  function renderPriorityOptions(){
+    const container = el('priorityOptions');
+    container.innerHTML = PRIORITIES.map(p => `
+      <button type="button" class="priority-opt ${formPriority===p.id?'active':''}" data-p="${p.id}" style="border-color:${formPriority===p.id?p.color:'var(--border)'}">
+        <span class="dot" style="background:${p.color}"></span>${p.label}
+      </button>`).join('');
+    container.querySelectorAll('[data-p]').forEach(b=>{
+      b.onclick = ()=>{ formPriority = b.dataset.p; renderPriorityOptions(); };
+    });
+  }
+
+  function renderStatusOptions(){
+    el('statusOptions').querySelectorAll('.status-opt').forEach(b=>{
+      b.classList.toggle('active', b.dataset.value === formStatus);
+      b.onclick = ()=>{ formStatus = b.dataset.value; renderStatusOptions(); };
+    });
+  }
+
+  function renderFormCategorySelect(){
+    const container = el('formCategorySelect');
+    const btn = container.querySelector('.select-btn');
+    const menu = container.querySelector('.select-menu');
+    const label = formCategory;
+    btn.innerHTML = `${escapeHtml(label)} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`;
+    const cats = getCategories();
+    menu.innerHTML = cats.map(c => `<button class="select-item" data-v="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join('');
+    btn.onclick = (e)=>{ e.stopPropagation(); closeAllSelects(); menu.classList.toggle('open'); };
+    menu.querySelectorAll('.select-item').forEach(item=>{
+      item.onclick = ()=>{ formCategory = item.dataset.v; el('newCategoryInput').value=''; renderFormCategorySelect(); closeAllSelects(); };
+    });
+  }
+
+  function closeForm(){
+    el('formOverlay').classList.remove('open');
+    editingId = null;
+  }
+
+  function saveForm(){
+    const title = el('titleInput').value.trim();
+    if(!title){
+      el('titleError').style.display = 'block';
+      el('titleInput').classList.add('error');
+      return;
+    }
+    const newCat = el('newCategoryInput').value.trim();
+    const category = newCat || formCategory;
+    const description = el('descInput').value.trim();
+
+    if(editingId){
+      tasks = tasks.map(t => t.id===editingId ? {...t, title, description, priority:formPriority, status:formStatus, category} : t);
+    }else{
+      tasks = [...tasks, { id: crypto.randomUUID(), seq: nextSeq, createdAt: Date.now(), title, description, priority:formPriority, status:formStatus, category }];
+      nextSeq += 1;
+    }
+    saveTasks();
+    closeForm();
+    render();
+  }
+
+  function openDeleteConfirm(id){
+    deleteTargetId = id;
+    const t = tasks.find(x=>x.id===id);
+    el('deleteTitle').textContent = `Delete T-${pad(t.seq)}?`;
+    el('deleteDesc').textContent = `"${t.title}" will be removed from the log. This can't be undone.`;
+    el('deleteOverlay').classList.add('open');
+  }
+
+  function closeDeleteConfirm(){
+    el('deleteOverlay').classList.remove('open');
+    deleteTargetId = null;
+  }
+
+  function confirmDelete(){
+    tasks = tasks.filter(t=>t.id!==deleteTargetId);
+    saveTasks();
+    closeDeleteConfirm();
+    render();
+  }
+
+  // Wire up static controls
+  el('newTaskBtn').addEventListener('click', ()=>openForm(null));
+  el('formClose').addEventListener('click', closeForm);
+  el('formCancel').addEventListener('click', closeForm);
+  el('formSave').addEventListener('click', saveForm);
+  el('formOverlay').addEventListener('click', (e)=>{ if(e.target.id==='formOverlay') closeForm(); });
+  el('deleteCancel').addEventListener('click', closeDeleteConfirm);
+  el('deleteConfirm').addEventListener('click', confirmDelete);
+  el('deleteOverlay').addEventListener('click', (e)=>{ if(e.target.id==='deleteOverlay') closeDeleteConfirm(); });
+  el('searchInput').addEventListener('input', (e)=>{ filters.query = e.target.value; render(); });
+  el('titleInput').addEventListener('input', ()=>{
+    el('titleError').style.display = 'none';
+    el('titleInput').classList.remove('error');
+  });
+
+  loadTasks();
+})();
+</script>
+</body>
+</html>
