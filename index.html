@@ -99,7 +99,7 @@
   .checkbox svg{display:none;color:#fff;}
   .checkbox.checked svg{display:block;}
 
-  .row-body{flex:1;min-width:0;}
+  .row-body{flex:1;min-width:0;cursor:pointer;}
   .row-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .task-id{font-size:11px;color:var(--muted);}
   .task-title{font-size:14px;font-weight:500;color:var(--ink);}
@@ -163,6 +163,15 @@
   .user-bar{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-soft);}
   .signout-btn{background:none;border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--ink-soft);padding:6px 10px;}
   .signout-btn:hover{background:rgba(0,0,0,0.03);}
+
+  .detail-modal{max-width:560px;}
+  .detail-body{padding:16px 20px;max-height:70vh;overflow-y:auto;}
+  .detail-id{font-size:12px;color:var(--muted);}
+  .detail-title{font-size:19px;font-weight:600;margin:4px 0 14px;}
+  .detail-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:16px;}
+  .detail-label{font-size:11px;text-transform:uppercase;letter-spacing:0.04em;font-weight:500;color:var(--muted);margin:0 0 6px;}
+  .detail-desc{font-size:14px;line-height:1.6;color:var(--ink);white-space:pre-wrap;word-break:break-word;margin:0 0 16px;}
+  .detail-meta{font-size:12px;color:var(--muted);margin-top:8px;}
 </style>
 </head>
 <body>
@@ -263,6 +272,13 @@
         </div>
       </div>
       <div class="field">
+        <label>Assignee</label>
+        <div class="select" id="formAssigneeSelect" style="margin-top:5px;">
+          <button class="select-btn" data-value="" style="width:100%;justify-content:space-between;"></button>
+          <div class="select-menu"></div>
+        </div>
+      </div>
+      <div class="field">
         <label>Status</label>
         <div class="status-options" id="statusOptions">
           <button type="button" class="status-opt" data-value="open">Open</button>
@@ -273,6 +289,28 @@
     <div class="modal-footer">
       <button class="btn-ghost" id="formCancel">Cancel</button>
       <button class="btn-primary" id="formSave">Add to log</button>
+    </div>
+  </div>
+</div>
+
+<!-- Task detail modal -->
+<div class="overlay" id="detailOverlay">
+  <div class="modal detail-modal">
+    <div class="modal-header">
+      <span class="detail-id mono" id="detailSeq">T-000</span>
+      <button class="icon-btn" id="detailClose"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="detail-body">
+      <h2 class="display detail-title" id="detailTitle"></h2>
+      <div class="detail-tags" id="detailTags"></div>
+      <p class="detail-label">Description</p>
+      <p class="detail-desc" id="detailDesc"></p>
+      <p class="detail-meta" id="detailMeta"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-danger" id="detailDelete">Delete</button>
+      <button class="btn-ghost" id="detailCloseBtn">Close</button>
+      <button class="btn-primary" id="detailEdit">Edit</button>
     </div>
   </div>
 </div>
@@ -360,6 +398,14 @@ onAuthStateChanged(auth, (user) => {
     { id:'low', label:'Low', color:'var(--low)' },
   ];
   const DEFAULT_CATEGORIES = ['Bug','Feature','Chore','Research'];
+  // Emails of teammates you've added in Firebase Authentication. Update this list
+  // to match whoever should be assignable — there's no client-side way to read
+  // the Auth user list automatically, so it's kept here.
+  const TEAM_MEMBERS = [
+    'alice@example.com',
+    'bob@example.com',
+    'wouterbieze@home.nl',
+  ];
   const PRIORITY_ORDER = { urgent:0, high:1, normal:2, low:3 };
 
   let tasks = [];
@@ -371,6 +417,7 @@ onAuthStateChanged(auth, (user) => {
   let formPriority = 'normal';
   let formStatus = 'open';
   let formCategory = DEFAULT_CATEGORIES[0];
+  let formAssignee = '';
 
   const pad = n => String(n).padStart(3,'0');
   const priorityMeta = id => PRIORITIES.find(p=>p.id===id) || PRIORITIES[2];
@@ -456,7 +503,7 @@ onAuthStateChanged(auth, (user) => {
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           </button>
         </div>
-        <div class="row-body">
+        <div class="row-body" data-view="${t.id}">
           <div class="row-top">
             <span class="task-id mono">T-${pad(t.seq)}</span>
             <span class="task-title">${escapeHtml(t.title)}</span>
@@ -468,6 +515,7 @@ onAuthStateChanged(auth, (user) => {
             </span>
             <span class="tag tag-cat">${escapeHtml(t.category)}</span>
             <span class="tag tag-status">${done?'Done':'Open'}</span>
+            ${t.assignee ? `<span class="tag tag-cat">${escapeHtml(t.assignee)}</span>` : `<span class="tag tag-cat">Unassigned</span>`}
           </div>
         </div>
         <div class="row-actions">
@@ -481,9 +529,10 @@ onAuthStateChanged(auth, (user) => {
       </div>`;
     }).join('');
 
-    card.querySelectorAll('[data-toggle]').forEach(b=>b.addEventListener('click', ()=>toggleStatus(b.dataset.toggle)));
-    card.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', ()=>openForm(b.dataset.edit)));
-    card.querySelectorAll('[data-delete]').forEach(b=>b.addEventListener('click', ()=>openDeleteConfirm(b.dataset.delete)));
+    card.querySelectorAll('[data-toggle]').forEach(b=>b.addEventListener('click', (e)=>{ e.stopPropagation(); toggleStatus(b.dataset.toggle); }));
+    card.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', (e)=>{ e.stopPropagation(); openForm(b.dataset.edit); }));
+    card.querySelectorAll('[data-delete]').forEach(b=>b.addEventListener('click', (e)=>{ e.stopPropagation(); openDeleteConfirm(b.dataset.delete); }));
+    card.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click', ()=>openDetail(b.dataset.view)));
   }
 
   function escapeHtml(str){
@@ -527,10 +576,12 @@ onAuthStateChanged(auth, (user) => {
     formPriority = task ? task.priority : 'normal';
     formStatus = task ? task.status : 'open';
     formCategory = task ? task.category : getCategories()[0];
+    formAssignee = task ? (task.assignee || '') : '';
     el('newCategoryInput').value = '';
     renderPriorityOptions();
     renderStatusOptions();
     renderFormCategorySelect();
+    renderFormAssigneeSelect();
     el('formOverlay').classList.add('open');
     el('titleInput').focus();
   }
@@ -567,6 +618,20 @@ onAuthStateChanged(auth, (user) => {
     });
   }
 
+  function renderFormAssigneeSelect(){
+    const container = el('formAssigneeSelect');
+    const btn = container.querySelector('.select-btn');
+    const menu = container.querySelector('.select-menu');
+    const label = formAssignee || 'Unassigned';
+    btn.innerHTML = `${escapeHtml(label)} <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`;
+    const options = ['Unassigned', ...TEAM_MEMBERS];
+    menu.innerHTML = options.map(o => `<button class="select-item" data-v="${escapeHtml(o==='Unassigned'?'':o)}">${escapeHtml(o)}</button>`).join('');
+    btn.onclick = (e)=>{ e.stopPropagation(); closeAllSelects(); menu.classList.toggle('open'); };
+    menu.querySelectorAll('.select-item').forEach(item=>{
+      item.onclick = ()=>{ formAssignee = item.dataset.v; renderFormAssigneeSelect(); closeAllSelects(); };
+    });
+  }
+
   function closeForm(){
     el('formOverlay').classList.remove('open');
     editingId = null;
@@ -584,14 +649,42 @@ onAuthStateChanged(auth, (user) => {
     const description = el('descInput').value.trim();
 
     if(editingId){
-      tasks = tasks.map(t => t.id===editingId ? {...t, title, description, priority:formPriority, status:formStatus, category} : t);
+      tasks = tasks.map(t => t.id===editingId ? {...t, title, description, priority:formPriority, status:formStatus, category, assignee:formAssignee} : t);
     }else{
-      tasks = [...tasks, { id: crypto.randomUUID(), seq: nextSeq, createdAt: Date.now(), title, description, priority:formPriority, status:formStatus, category }];
+      tasks = [...tasks, { id: crypto.randomUUID(), seq: nextSeq, createdAt: Date.now(), title, description, priority:formPriority, status:formStatus, category, assignee:formAssignee }];
       nextSeq += 1;
     }
     saveTasks();
     closeForm();
     render();
+  }
+
+  let detailTargetId = null;
+
+  function openDetail(id){
+    detailTargetId = id;
+    const t = tasks.find(x=>x.id===id);
+    if(!t) return;
+    const meta = priorityMeta(t.priority);
+    const done = t.status === 'done';
+    el('detailSeq').textContent = `T-${pad(t.seq)}`;
+    el('detailTitle').textContent = t.title;
+    el('detailTags').innerHTML = `
+      <span class="tag tag-priority" style="color:${meta.color};background:${meta.color}1a">
+        <span class="dot" style="background:${meta.color}"></span>${meta.label}
+      </span>
+      <span class="tag tag-cat">${escapeHtml(t.category)}</span>
+      <span class="tag tag-status">${done?'Done':'Open'}</span>
+      <span class="tag tag-cat">${t.assignee ? escapeHtml(t.assignee) : 'Unassigned'}</span>`;
+    el('detailDesc').textContent = t.description ? t.description : 'No description added.';
+    const created = t.createdAt ? new Date(t.createdAt).toLocaleString() : '';
+    el('detailMeta').textContent = created ? `Created ${created}` : '';
+    el('detailOverlay').classList.add('open');
+  }
+
+  function closeDetail(){
+    el('detailOverlay').classList.remove('open');
+    detailTargetId = null;
   }
 
   function openDeleteConfirm(id){
@@ -623,6 +716,11 @@ onAuthStateChanged(auth, (user) => {
   el('deleteCancel').addEventListener('click', closeDeleteConfirm);
   el('deleteConfirm').addEventListener('click', confirmDelete);
   el('deleteOverlay').addEventListener('click', (e)=>{ if(e.target.id==='deleteOverlay') closeDeleteConfirm(); });
+  el('detailClose').addEventListener('click', closeDetail);
+  el('detailCloseBtn').addEventListener('click', closeDetail);
+  el('detailOverlay').addEventListener('click', (e)=>{ if(e.target.id==='detailOverlay') closeDetail(); });
+  el('detailEdit').addEventListener('click', ()=>{ const id = detailTargetId; closeDetail(); openForm(id); });
+  el('detailDelete').addEventListener('click', ()=>{ const id = detailTargetId; closeDetail(); openDeleteConfirm(id); });
   el('searchInput').addEventListener('input', (e)=>{ filters.query = e.target.value; render(); });
   el('titleInput').addEventListener('input', ()=>{
     el('titleError').style.display = 'none';
